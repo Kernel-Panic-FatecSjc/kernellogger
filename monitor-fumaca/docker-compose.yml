@@ -1,0 +1,39 @@
+services:
+  dashboard:
+    build:
+      context: ../dashboard
+    container_name: monitor-dashboard
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      BACKEND_URL: ${BACKEND_URL:-http://host.docker.internal:8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: monitor-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-monitor}
+      POSTGRES_USER: ${DB_USER:-monitor}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-monitor_pass}
+      TZ: America/Sao_Paulo
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - monitor_pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-monitor} -d ${DB_NAME:-monitor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  monitor_pgdata:

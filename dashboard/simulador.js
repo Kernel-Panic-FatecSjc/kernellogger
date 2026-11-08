@@ -1,5 +1,3 @@
-// SIMULADOR: envia leituras FALSAS ao dashboard, só para testar/ensaiar sem a placa.
-// Uso: node simulador.js [url]   |   para simular fumaça: crie um arquivo "fumaca.txt" na pasta (apague para parar)
 const fs = require('fs'), path = require('path');
 const url = process.argv[2] || 'http://localhost:3000/api/leituras';
 let t = 27, u = 55;
