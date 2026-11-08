@@ -1,130 +1,581 @@
-<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Monitoramento Ambiental</title>
-<style>
-:root{--bg:#f3f5f9;--card:#fff;--tx:#1b2433;--mut:#6b7686;--bd:#e4e8ef;--ok:#16a34a;--warn:#d99100;--bad:#dc2626;--temp:#f2691f;--hum:#2b7de9;--sh:0 1px 2px #0d1b3a0f,0 4px 16px #0d1b3a0a}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1118;--card:#171b25;--tx:#e8ecf4;--mut:#8b95a7;--bd:#262c3a;--sh:none}}
-*{box-sizing:border-box}
-body{margin:0;font-family:Inter,system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--tx)}
-.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-h1{font-size:1.35rem;margin:0}h1 small{display:block;font-size:.8rem;font-weight:400;color:var(--mut);margin-top:2px}
-.live{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--mut)}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--mut)}
-.live.on .dot{background:var(--ok);animation:p 2s infinite}
-.live.off .dot{background:var(--bad)}
-@keyframes p{0%{box-shadow:0 0 0 0 #16a34a88}70%{box-shadow:0 0 0 8px #16a34a00}100%{box-shadow:0 0 0 0 #16a34a00}}
-.banner{border-radius:14px;padding:18px 22px;color:#fff;display:flex;align-items:center;gap:16px;margin-bottom:16px;transition:background .4s;box-shadow:var(--sh)}
-.banner .ic{font-size:2.2rem}.banner b{font-size:1.25rem;display:block}.banner span{opacity:.9;font-size:.9rem}
-.s-normal{background:linear-gradient(135deg,#16a34a,#22c55e)}
-.s-atencao{background:linear-gradient(135deg,#d99100,#f5b82e)}
-.s-perigo{background:linear-gradient(135deg,#b91c1c,#ef4444);animation:blink 1s infinite alternate}
-.s-off{background:linear-gradient(135deg,#475569,#64748b)}
-@keyframes blink{to{filter:brightness(1.25)}}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:14px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px;box-shadow:var(--sh)}
-.card h2{margin:0 0 6px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);font-weight:600}
-.big{font-size:2.6rem;font-weight:700;line-height:1.1}.big small{font-size:1.1rem;color:var(--mut);font-weight:500}
-.bar{height:8px;border-radius:99px;background:var(--bd);margin-top:14px;overflow:hidden}
-.bar i{display:block;height:100%;border-radius:99px;width:0;transition:width .6s}
-.lim{font-size:.75rem;color:var(--mut);margin-top:6px}
-.chart canvas{width:100%;height:220px;display:block}
-.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:14px}
-table{width:100%;border-collapse:collapse;font-size:.88rem}
-th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--bd)}th{color:var(--mut);font-weight:600;font-size:.75rem;text-transform:uppercase}
-.tag{padding:2px 9px;border-radius:99px;font-size:.75rem;color:#fff}
-.tag.normal{background:var(--ok)}.tag.atencao{background:var(--warn)}.tag.perigo{background:var(--bad)}
-.hist{max-height:300px;overflow:auto}
-svg.i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.15em;margin-right:4px}
-.banner .ic svg{margin:0;stroke-width:1.8}
-</style></head><body><div class="wrap">
-<header>
- <h1>Monitoramento Ambiental<small>Raspberry Pi · DHT11 + MQ-2</small></h1>
- <div class="live" id="live"><span class="dot"></span><span id="liveTx">conectando…</span></div>
-</header>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<div class="banner s-off" id="banner"><div class="ic" id="bic" data-i="clock"></div><div><b id="bt">Aguardando dados</b><span id="bs">—</span></div></div>
+    <title>Atmos - Monitoramento Ambiental</title>
 
-<div class="grid">
- <div class="card"><h2><i data-i="thermometer"></i>Temperatura</h2><div class="big"><span id="t">--</span><small> °C</small></div>
-  <div class="bar"><i id="tb" style="background:var(--temp)"></i></div><div class="lim">Alerta a partir de 35 °C</div></div>
- <div class="card"><h2><i data-i="droplet"></i>Umidade</h2><div class="big"><span id="u">--</span><small> %</small></div>
-  <div class="bar"><i id="ub" style="background:var(--hum)"></i></div><div class="lim">Faixa ideal: 20% – 85%</div></div>
- <div class="card"><h2><i data-i="flame"></i>Fumaça (MQ-2)</h2><div class="big" id="f">--</div>
-  <div class="lim" id="fs">Sem leitura</div></div>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f5f7fb;
+            color: #172235;
+            font-family: Arial, sans-serif;
+        }
+
+        .app {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        aside {
+            width: 230px;
+            background: white;
+            padding: 25px;
+            border-right: 1px solid #e8edf4;
+        }
+
+        .logo {
+            color: #159b72;
+            font-size: 25px;
+            font-weight: bold;
+            margin-bottom: 35px;
+        }
+
+        .menu a {
+            display: block;
+            padding: 12px;
+            margin-bottom: 8px;
+            color: #647187;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+
+        .menu a:hover {
+            background: #e7f7f1;
+            color: #159b72;
+        }
+
+        main {
+            flex: 1;
+            padding: 30px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 27px;
+        }
+
+        header p {
+            color: #8490a3;
+        }
+
+        .status {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            color: #159b72;
+        }
+
+        .alerta {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #e8edf4;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e8edf4;
+        }
+
+        .card h3 {
+            color: #647187;
+            font-size: 14px;
+        }
+
+        .valor {
+            font-size: 30px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .temperatura {
+            color: #e78348;
+        }
+
+        .umidade {
+            color: #4c77ed;
+        }
+
+        .fumaca {
+            color: #159b72;
+        }
+
+        .secao {
+            margin-top: 30px;
+        }
+
+        .graficos {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 180px;
+        }
+
+        .historico {
+            background: white;
+            border-radius: 12px;
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 13px;
+            text-align: left;
+            border-bottom: 1px solid #e8edf4;
+        }
+
+        th {
+            color: #8490a3;
+            font-size: 12px;
+        }
+
+        td {
+            font-size: 13px;
+        }
+
+        .normal {
+            color: #159b72;
+        }
+
+        .atencao {
+            color: #d98b19;
+        }
+
+        .perigo {
+            color: #d94d57;
+        }
+
+        @media (max-width: 800px) {
+            aside {
+                display: none;
+            }
+
+            main {
+                padding: 15px;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .graficos {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside>
+        <div class="logo">Atmos</div>
+
+        <div class="menu">
+            <a href="#inicio">Visão geral</a>
+            <a href="#graficos">Histórico</a>
+        </div>
+
+        <p>Estação local</p>
+        <small>Raspberry Pi</small>
+        <br>
+        <small>DHT11 - MQ-2</small>
+    </aside>
+
+    <main id="inicio">
+
+        <header>
+            <div>
+                <h1>Visão geral</h1>
+                <p>Monitoramento do ambiente em tempo real.</p>
+            </div>
+
+            <div class="status" id="conexao">
+                ● Conectando...
+            </div>
+        </header>
+
+        <div class="alerta" id="alerta">
+            Aguardando dados dos sensores...
+        </div>
+
+        <h2>Leitura atual</h2>
+
+        <section class="cards">
+
+            <div class="card">
+                <h3>Temperatura</h3>
+                <div class="valor temperatura">
+                    <span id="temperatura">--</span> °C
+                </div>
+                <p>Limite: 35 °C</p>
+            </div>
+
+            <div class="card">
+                <h3>Umidade do ar</h3>
+                <div class="valor umidade">
+                    <span id="umidade">--</span> %
+                </div>
+                <p>Umidade relativa</p>
+            </div>
+
+            <div class="card">
+                <h3>Fumaça - MQ-2</h3>
+                <div class="valor fumaca" id="fumaca">
+                    --
+                </div>
+                <p id="mensagemFumaca">Aguardando leitura</p>
+            </div>
+
+        </section>
+
+        <section class="secao" id="graficos">
+
+            <h2>Variação das leituras</h2>
+
+            <div class="graficos">
+
+                <div class="card">
+                    <h3>Temperatura</h3>
+                    <canvas id="graficoTemperatura"></canvas>
+                </div>
+
+                <div class="card">
+                    <h3>Umidade</h3>
+                    <canvas id="graficoUmidade"></canvas>
+                </div>
+
+            </div>
+
+        </section>
+
+        <section class="secao">
+
+            <h2>Últimas leituras</h2>
+
+            <div class="historico">
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Horário</th>
+                            <th>Temperatura</th>
+                            <th>Umidade</th>
+                            <th>Fumaça</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="tabela">
+                        <tr>
+                            <td colspan="5">
+                                Aguardando leituras...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+            </div>
+
+        </section>
+
+    </main>
+
 </div>
 
-<div class="two">
- <div class="card chart"><h2>Temperatura (°C)</h2><canvas id="gt"></canvas></div>
- <div class="card chart"><h2>Umidade (%)</h2><canvas id="gu"></canvas></div>
-</div>
-
-<div class="card" style="margin-top:14px"><h2>Últimas leituras</h2>
- <div class="hist"><table><thead><tr><th>Hora</th><th>Temp.</th><th>Umid.</th><th>Fumaça</th><th>Estado</th></tr></thead><tbody id="rows"></tbody></table></div></div>
-</div>
 <script>
-// limites iguais aos do programa em C
-const TEMP_MAX=35,UMID_MIN=20,UMID_MAX=85;
-const $=id=>document.getElementById(id);
-const estado=r=>r.fumaca?'perigo':(r.temperatura>=TEMP_MAX||r.umidade<UMID_MIN||r.umidade>UMID_MAX)?'atencao':'normal';
-const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const hora=(s,o)=>new Date(s).toLocaleTimeString([],o);
 
-function linha(id,d,k,cor,min,max,limites){
-  const c=$(id),dpr=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
-  c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);
-  const L=34,B=20,T=8,R=6,pw=w-L-R,ph=h-T-B,mut=css('--mut'),bd=css('--bd');
-  const Y=v=>T+ph-(Math.min(Math.max(v,min),max)-min)/(max-min)*ph;
-  x.font='11px system-ui';x.fillStyle=mut;x.strokeStyle=bd;x.lineWidth=1;
-  for(let i=0;i<=4;i++){const v=min+(max-min)*i/4,y=Y(v);x.beginPath();x.moveTo(L,y);x.lineTo(w-R,y);x.stroke();x.fillText(Math.round(v),4,y+4)}
-  limites.forEach(v=>{x.save();x.setLineDash([5,4]);x.strokeStyle='#dc2626aa';x.beginPath();x.moveTo(L,Y(v));x.lineTo(w-R,Y(v));x.stroke();x.restore()});
-  const pts=d.map((r,i)=>r[k]==null?null:[L+i*pw/Math.max(d.length-1,1),Y(r[k])]).filter(Boolean);
-  if(pts.length<2)return;
-  const g=x.createLinearGradient(0,T,0,T+ph);g.addColorStop(0,cor+'55');g.addColorStop(1,cor+'00');
-  x.beginPath();pts.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p));
-  x.lineTo(pts.at(-1)[0],T+ph);x.lineTo(pts[0][0],T+ph);x.fillStyle=g;x.fill();
-  x.beginPath();pts.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p));x.strokeStyle=cor;x.lineWidth=2.2;x.lineJoin='round';x.stroke();
-  const p=pts.at(-1);x.beginPath();x.arc(p[0],p[1],4,0,7);x.fillStyle=cor;x.fill();
-  const o={hour:'2-digit',minute:'2-digit'},e=hora(d.at(-1).criado_em,o);
-  x.fillStyle=mut;x.fillText(hora(d[0].criado_em,o),L,h-5);x.fillText(e,w-R-x.measureText(e).width,h-5);
-}
+    const LIMITE_TEMPERATURA = 35;
 
-// ícones Lucide (inline, sem dependência externa)
-const P={
- thermometer:'<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>',
- droplet:'<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
- flame:'<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
- ok:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
- warn:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
- siren:'<path d="M7 18v-6a5 5 0 1 1 10 0v6"/><path d="M5 21a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1z"/><path d="M21 12h1"/><path d="M18.5 4.5 18 5"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.929 4.929.707.707"/><path d="M12 12v6"/>',
- off:'<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
- clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'};
-const ico=n=>`<svg class="i" viewBox="0 0 24 24">${P[n]}</svg>`;
-document.querySelectorAll('[data-i]').forEach(e=>e.innerHTML=ico(e.dataset.i));
-const B={normal:['ok','Ambiente normal','Todos os sensores dentro dos limites.'],atencao:['warn','Atenção','Temperatura ou umidade fora da faixa.'],perigo:['siren','PERIGO — fumaça detectada','Verifique o ambiente imediatamente.']};
-let dados=[];
-function desenhar(){ if(!dados.length)return;
-  linha('gt',dados,'temperatura',css('--temp'),0,50,[TEMP_MAX]);
-  linha('gu',dados,'umidade',css('--hum'),0,100,[UMID_MIN,UMID_MAX]);}
-async function atualizar(){
-  try{
-    dados=await (await fetch('/api/leituras')).json();
-    $('live').className='live on';$('liveTx').textContent='ao vivo · atualiza a cada 2s';
-    if(!dados.length){$('bs').textContent='Nenhuma leitura recebida ainda.';return}
-    const r=dados.at(-1),e=estado(r),b=B[e],idade=(Date.now()-new Date(r.criado_em))/1000;
-    $('t').textContent=r.temperatura==null?'--':r.temperatura.toFixed(1);
-    $('u').textContent=r.umidade==null?'--':r.umidade.toFixed(1);
-    $('tb').style.width=Math.min(100,(r.temperatura||0)/50*100)+'%';
-    $('ub').style.width=Math.min(100,r.umidade||0)+'%';
-    $('f').textContent=r.fumaca?'DETECTADA':'Normal';$('f').style.color=r.fumaca?css('--bad'):css('--ok');
-    $('fs').textContent=r.fumaca?'Gás/fumaça acima do limiar do sensor':'Nenhuma fumaça detectada';
-    const stale=idade>30;
-    $('banner').className='banner '+(stale?'s-off':'s-'+e);
-    $('bic').innerHTML=ico(stale?'off':b[0]);$('bt').textContent=stale?'Sem dados recentes':b[1];
-    $('bs').textContent=stale?`Última leitura há ${Math.round(idade)}s — verifique a placa.`:b[2]+' Última leitura: '+hora(r.criado_em);
-    $('rows').innerHTML=dados.slice(-30).reverse().map(x=>{const s=estado(x);return`<tr><td>${hora(x.criado_em)}</td><td>${x.temperatura==null?'--':x.temperatura.toFixed(1)+' °C'}</td><td>${x.umidade==null?'--':x.umidade.toFixed(1)+' %'}</td><td>${x.fumaca?'Sim':'Não'}</td><td><span class="tag ${s}">${s}</span></td></tr>`}).join('');
-    desenhar();
-  }catch(e){$('live').className='live off';$('liveTx').textContent='backend indisponível'}
-}
-addEventListener('resize',desenhar);atualizar();setInterval(atualizar,2000);
-</script></body></html>
+    let leituras = [];
+
+    function buscarElemento(id) {
+        return document.getElementById(id);
+    }
+
+    function verificarEstado(leitura) {
+
+        if (leitura.fumaca) {
+            return "perigo";
+        }
+
+        if (leitura.temperatura >= LIMITE_TEMPERATURA) {
+            return "atencao";
+        }
+
+        if (leitura.umidade < 20 || leitura.umidade > 85) {
+            return "atencao";
+        }
+
+        return "normal";
+    }
+
+    function mostrarAlerta(leitura) {
+
+        const estado = verificarEstado(leitura);
+        const alerta = buscarElemento("alerta");
+
+        if (estado === "perigo") {
+            alerta.textContent = "Alerta! Fumaça detectada no ambiente.";
+            alerta.style.color = "#d94d57";
+        }
+        else if (estado === "atencao") {
+            alerta.textContent = "Atenção! Valores fora dos limites definidos.";
+            alerta.style.color = "#d98b19";
+        }
+        else {
+            alerta.textContent = "Ambiente dentro dos parâmetros normais.";
+            alerta.style.color = "#159b72";
+        }
+    }
+
+    function atualizarTela(leitura) {
+
+        buscarElemento("temperatura").textContent =
+            leitura.temperatura == null
+                ? "--"
+                : Number(leitura.temperatura).toFixed(1);
+
+        buscarElemento("umidade").textContent =
+            leitura.umidade == null
+                ? "--"
+                : Number(leitura.umidade).toFixed(1);
+
+        buscarElemento("fumaca").textContent =
+            leitura.fumaca ? "Detectada" : "Normal";
+
+        buscarElemento("mensagemFumaca").textContent =
+            leitura.fumaca
+                ? "Gás ou fumaça detectada"
+                : "Nenhuma fumaça detectada";
+
+        mostrarAlerta(leitura);
+    }
+
+    function desenharGrafico(id, dados, campo, cor, limite) {
+
+        const canvas = buscarElemento(id);
+        const ctx = canvas.getContext("2d");
+
+        const largura = canvas.clientWidth;
+        const altura = canvas.clientHeight;
+
+        canvas.width = largura;
+        canvas.height = altura;
+
+        ctx.clearRect(0, 0, largura, altura);
+
+        ctx.strokeStyle = "#e8edf4";
+        ctx.fillStyle = "#8490a3";
+        ctx.font = "11px Arial";
+
+        for (let i = 0; i <= 4; i++) {
+
+            const y = 10 + i * (altura - 30) / 4;
+
+            ctx.beginPath();
+            ctx.moveTo(30, y);
+            ctx.lineTo(largura - 10, y);
+            ctx.stroke();
+        }
+
+        if (dados.length < 2) {
+            return;
+        }
+
+        const pontos = dados.map((item, index) => {
+
+            const x = 30 + index * (largura - 40) /
+                (dados.length - 1);
+
+            const valor = Number(item[campo]) || 0;
+
+            const y = altura - 20 - (valor / limite) *
+                (altura - 40);
+
+            return {
+                x: x,
+                y: Math.max(10, Math.min(altura - 20, y))
+            };
+
+        });
+
+        ctx.beginPath();
+
+        pontos.forEach((ponto, index) => {
+
+            if (index === 0) {
+                ctx.moveTo(ponto.x, ponto.y);
+            }
+            else {
+                ctx.lineTo(ponto.x, ponto.y);
+            }
+
+        });
+
+        ctx.strokeStyle = cor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+    }
+
+    function atualizarGraficos() {
+
+        desenharGrafico(
+            "graficoTemperatura",
+            leituras,
+            "temperatura",
+            "#e78348",
+            50
+        );
+
+        desenharGrafico(
+            "graficoUmidade",
+            leituras,
+            "umidade",
+            "#4c77ed",
+            100
+        );
+
+    }
+
+    function atualizarTabela() {
+
+        const tabela = buscarElemento("tabela");
+
+        const ultimasLeituras = leituras.slice(-30).reverse();
+
+        if (ultimasLeituras.length === 0) {
+
+            tabela.innerHTML =
+                "<tr><td colspan='5'>Nenhuma leitura recebida</td></tr>";
+
+            return;
+        }
+
+        tabela.innerHTML = "";
+
+        ultimasLeituras.forEach(leitura => {
+
+            const estado = verificarEstado(leitura);
+
+            const horario = new Date(leitura.criado_em)
+                .toLocaleTimeString("pt-BR");
+
+            const temperatura = leitura.temperatura == null
+                ? "--"
+                : Number(leitura.temperatura).toFixed(1) + " °C";
+
+            const umidade = leitura.umidade == null
+                ? "--"
+                : Number(leitura.umidade).toFixed(1) + " %";
+
+            const fumaca = leitura.fumaca
+                ? "Detectada"
+                : "Não";
+
+            const linha = document.createElement("tr");
+
+            linha.innerHTML = `
+                <td>${horario}</td>
+                <td>${temperatura}</td>
+                <td>${umidade}</td>
+                <td>${fumaca}</td>
+                <td class="${estado}">${estado}</td>
+            `;
+
+            tabela.appendChild(linha);
+
+        });
+
+    }
+
+    async function buscarLeituras() {
+
+        try {
+
+            const resposta = await fetch("/api/leituras");
+
+            if (!resposta.ok) {
+                throw new Error("Erro ao buscar leituras");
+            }
+
+            leituras = await resposta.json();
+
+            buscarElemento("conexao").textContent =
+                "● Conectado";
+
+            buscarElemento("conexao").style.color =
+                "#159b72";
+
+            if (leituras.length > 0) {
+
+                const leituraAtual = leituras[leituras.length - 1];
+
+                atualizarTela(leituraAtual);
+
+                atualizarTabela();
+
+                atualizarGraficos();
+
+            }
+
+        }
+        catch (erro) {
+
+            buscarElemento("conexao").textContent =
+                "● Sem conexão";
+
+            buscarElemento("conexao").style.color =
+                "#d94d57";
+
+            buscarElemento("alerta").textContent =
+                "Não foi possível conectar com a API.";
+
+        }
+
+    }
+
+    buscarLeituras();
+
+    setInterval(buscarLeituras, 2000);
+
+    window.addEventListener("resize", atualizarGraficos);
+
+</script>
+
+</body>
+</html>
