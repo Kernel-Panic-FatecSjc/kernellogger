@@ -8,13 +8,13 @@ Os números usados no código são BCM, pois ele chama `wiringPiSetupGpio()`:
 
 | Sinal | GPIO BCM | Pino físico |
 |---|---:|---:|
-| DHT11 DATA | 4 | 7 |
+| DHT11 DATA | 24 | 18 |
 | MQ-7 DO | 17 | 11 |
 | LED vermelho | 27 | 13 |
 | LED verde | 22 | 15 |
 | LED azul | 23 | 16 |
 
-No módulo DHT11 de 3 pinos, ligue VCC ao pino físico 1 (3,3 V), DATA ao pino físico 7 e GND a um pino GND, como o físico 6. Não conecte DATA diretamente à alimentação. O resistor de pull-up, se necessário, fica entre DATA e 3,3 V; muitos módulos já o incluem.
+No módulo DHT11 de 3 pinos, ligue VCC ao pino físico 1 (3,3 V), DATA ao pino físico 18 (BCM GPIO24; WiringPi GPIO5) e GND a um pino GND, como o físico 6. Não conecte DATA diretamente à alimentação. O resistor de pull-up, se necessário, fica entre DATA e 3,3 V; muitos módulos já o incluem.
 
 O código lê apenas a saída digital DO do módulo MQ-7. Isso informa o estado do comparador ajustado no módulo, não uma concentração calibrada de CO. Medição de CO exige circuito de aquecimento apropriado para MQ-7 e conversor analógico-digital; o Raspberry Pi não possui entrada analógica. Confira o esquema do módulo e garanta que DO nunca aplique mais de 3,3 V ao GPIO. Não use este projeto como alarme de segurança de vida.
 

@@ -9,7 +9,7 @@
 #include <semaphore.h>
 #include <wiringPi.h>
 
-#define PINO_DHT    4
+#define PINO_DHT    24
 #define PINO_MQ7    17
 #define PINO_LED_R  27
 #define PINO_LED_G  22
