@@ -6,9 +6,12 @@ services:
     restart: unless-stopped
     environment:
       PORT: 3000
-      BACKEND_URL: ${BACKEND_URL:-http://host.docker.internal:8080}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-monitor}
+      DB_USER: ${DB_USER:-monitor}
+      DB_PASSWORD: ${DB_PASSWORD:-monitor_pass}
+      INGEST_TOKEN: ${INGEST_TOKEN:-}
     ports:
       - "3000:3000"
     depends_on:

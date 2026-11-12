@@ -177,6 +177,10 @@
             color: #d94d57;
         }
 
+        .sem_dados {
+            color: #647187;
+        }
+
         @media (max-width: 800px) {
             aside {
                 display: none;
@@ -212,7 +216,7 @@
         <p>Estação local</p>
         <small>Raspberry Pi</small>
         <br>
-        <small>DHT11 - MQ-2</small>
+            <small>DHT11 - MQ-7</small>
     </aside>
 
     <main id="inicio">
@@ -253,11 +257,11 @@
             </div>
 
             <div class="card">
-                <h3>Fumaça - MQ-2</h3>
-                <div class="valor fumaca" id="fumaca">
+                <h3>Saída digital do MQ-7</h3>
+                <div class="valor mq7" id="mq7">
                     --
                 </div>
-                <p id="mensagemFumaca">Aguardando leitura</p>
+                <p id="mensagemMq7">Aguardando leitura</p>
             </div>
 
         </section>
@@ -294,7 +298,7 @@
                             <th>Horário</th>
                             <th>Temperatura</th>
                             <th>Umidade</th>
-                            <th>Fumaça</th>
+                            <th>MQ-7 digital</th>
                             <th>Estado</th>
                         </tr>
                     </thead>
@@ -328,8 +332,14 @@
 
     function verificarEstado(leitura) {
 
-        if (leitura.fumaca) {
+        const mq7Alarme = leitura.mq7_alarme ?? leitura.fumaca;
+
+        if (mq7Alarme) {
             return "perigo";
+        }
+
+        if (leitura.temperatura == null || leitura.umidade == null) {
+            return "sem_dados";
         }
 
         if (leitura.temperatura >= LIMITE_TEMPERATURA) {
@@ -349,8 +359,12 @@
         const alerta = buscarElemento("alerta");
 
         if (estado === "perigo") {
-            alerta.textContent = "Alerta! Fumaça detectada no ambiente.";
+            alerta.textContent = "Saída digital do MQ-7 ativada. Isso não é uma medição calibrada de CO.";
             alerta.style.color = "#d94d57";
+        }
+        else if (estado === "sem_dados") {
+            alerta.textContent = "Sem leitura válida do DHT11; confira o sensor e a ligação.";
+            alerta.style.color = "#647187";
         }
         else if (estado === "atencao") {
             alerta.textContent = "Atenção! Valores fora dos limites definidos.";
@@ -374,13 +388,13 @@
                 ? "--"
                 : Number(leitura.umidade).toFixed(1);
 
-        buscarElemento("fumaca").textContent =
-            leitura.fumaca ? "Detectada" : "Normal";
+        const mq7Alarme = leitura.mq7_alarme ?? leitura.fumaca;
 
-        buscarElemento("mensagemFumaca").textContent =
-            leitura.fumaca
-                ? "Gás ou fumaça detectada"
-                : "Nenhuma fumaça detectada";
+        buscarElemento("mq7").textContent =
+            mq7Alarme ? "Ativa" : "Inativa";
+
+        buscarElemento("mensagemMq7").textContent =
+            "Estado do comparador digital do módulo";
 
         mostrarAlerta(leitura);
     }
@@ -412,14 +426,18 @@
             ctx.stroke();
         }
 
-        if (dados.length < 2) {
+        const dadosValidos = dados.filter(item =>
+            item[campo] != null && Number.isFinite(Number(item[campo]))
+        );
+
+        if (dadosValidos.length < 2) {
             return;
         }
 
-        const pontos = dados.map((item, index) => {
+        const pontos = dadosValidos.map((item, index) => {
 
             const x = 30 + index * (largura - 40) /
-                (dados.length - 1);
+                (dadosValidos.length - 1);
 
             const valor = Number(item[campo]) || 0;
 
@@ -503,9 +521,8 @@
                 ? "--"
                 : Number(leitura.umidade).toFixed(1) + " %";
 
-            const fumaca = leitura.fumaca
-                ? "Detectada"
-                : "Não";
+            const mq7Alarme = leitura.mq7_alarme ?? leitura.fumaca;
+            const mq7 = mq7Alarme ? "Ativa" : "Inativa";
 
             const linha = document.createElement("tr");
 
@@ -513,7 +530,7 @@
                 <td>${horario}</td>
                 <td>${temperatura}</td>
                 <td>${umidade}</td>
-                <td>${fumaca}</td>
+                <td>${mq7}</td>
                 <td class="${estado}">${estado}</td>
             `;
 

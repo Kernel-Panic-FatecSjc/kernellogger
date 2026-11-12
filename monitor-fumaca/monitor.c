@@ -12,15 +12,15 @@
 #include <microhttpd.h>
 
 #define PINO_DHT    4
-#define PINO_MQ2    17
+#define PINO_MQ7    17
 #define PINO_LED_R  27
 #define PINO_LED_G  22
 #define PINO_LED_B  23
 
 #define LED_ANODO_COMUM 0
-#define NIVEL_DETECTADO LOW
+#define NIVEL_MQ7_ATIVO LOW
 
-#define TEMPO_AQUECIMENTO_MS 180000UL
+#define TEMPO_ESTABILIZACAO_MS 180000UL
 #define INTERVALO_DHT_MS     2000UL
 #define INTERVALO_LOOP_MS    200UL
 #define TENTATIVAS_DHT       5
@@ -28,8 +28,6 @@
 #define TEMP_MAXIMA  35.0f
 #define UMID_MINIMA  20.0f
 #define UMID_MAXIMA  85.0f
-
-#define MAX_TIMINGS 85
 
 #define TENTATIVA_BANCO_MS  5000UL   
 #define INTERVALO_BANCO_MS  10000UL  
@@ -52,7 +50,7 @@ typedef struct {
     float temperatura;
     float umidade;
     bool leituraValida;
-    bool fumaca;
+    bool mq7Ativo;
 } DadosSensores;
 
 static DadosSensores dados = {
@@ -65,7 +63,8 @@ static DadosSensores dados = {
 typedef enum {
     ESTADO_NORMAL,
     ESTADO_ATENCAO,
-    ESTADO_PERIGO
+    ESTADO_PERIGO,
+    ESTADO_SEM_DADOS
 } EstadoSistema;
 
 static EstadoSistema estadoAtual = ESTADO_NORMAL;
@@ -83,6 +82,7 @@ static const char *nomeEstado(EstadoSistema e)
         case ESTADO_NORMAL:  return "normal";
         case ESTADO_ATENCAO: return "atencao";
         case ESTADO_PERIGO:  return "perigo";
+        case ESTADO_SEM_DADOS: return "sem_dados";
     }
     return "desconhecido";
 }
@@ -99,14 +99,14 @@ static DadosSensores obterDados(void)
 }
 
 static void atualizarDados(float temp, float umid,
-                           bool valida, bool fumaca)
+                           bool valida, bool mq7Ativo)
 {
     sem_wait(&semDados);
 
     dados.temperatura = temp;
     dados.umidade = umid;
     dados.leituraValida = valida;
-    dados.fumaca = fumaca;
+    dados.mq7Ativo = mq7Ativo;
 
     sem_post(&semDados);
 }
@@ -233,7 +233,7 @@ static void bancoSalvarLeitura(DadosSensores d, EstadoSistema estado)
         params[1] = NULL;
     }
 
-    params[2] = d.fumaca ? "true" : "false";
+    params[2] = d.mq7Ativo ? "true" : "false";
     params[3] = nomeEstado(estado);
 
     res = PQexecParams(
@@ -379,7 +379,9 @@ static char *bancoListarLeituras(int limite)
                 bufferJsonNumero(&b, res, i, 2);
                 bufferPrintf(&b, ",\"umidade\":");
                 bufferJsonNumero(&b, res, i, 3);
-                bufferPrintf(&b, ",\"fumaca\":%s,\"estado\":\"%s\"}",
+                bufferPrintf(&b, ",\"fumaca\":%s,\"mq7_alarme\":%s,\"estado\":\"%s\"}",
+                             PQgetvalue(res, i, 4)[0] == 't'
+                                 ? "true" : "false",
                              PQgetvalue(res, i, 4)[0] == 't'
                                  ? "true" : "false",
                              PQgetvalue(res, i, 5));
@@ -497,10 +499,11 @@ static char *jsonStatus(void)
     EstadoSistema e = obterEstado();
 
     bufferPrintf(&b, "{\"aquecendo\":%s,\"estado\":\"%s\","
-                     "\"fumaca\":%s,\"leitura_valida\":%s,",
+                     "\"mq7_alarme\":%s,\"fumaca\":%s,\"leitura_valida\":%s,",
                  aquecendo ? "true" : "false",
                  nomeEstado(e),
-                 d.fumaca ? "true" : "false",
+                 d.mq7Ativo ? "true" : "false",
+                 d.mq7Ativo ? "true" : "false",
                  d.leituraValida ? "true" : "false");
 
     if (d.leituraValida) {
@@ -614,52 +617,57 @@ static void ledApagado(void)
 }
 
 
+static bool aguardarNivelDHT(int nivel, unsigned int timeoutUs)
+{
+    unsigned int inicio = micros();
+
+    while (digitalRead(PINO_DHT) != nivel) {
+        if ((unsigned int)(micros() - inicio) >= timeoutUs) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static int lerDHT11Uma(float *umid, float *temp)
 {
     uint8_t dadosDHT[5] = {0, 0, 0, 0, 0};
-    uint8_t ultimoEstado = HIGH;
-    uint8_t contador;
-    uint8_t j = 0;
-    int i;
+    unsigned int inicioPulso;
+    unsigned int duracaoPulso;
+    int bit;
 
     pinMode(PINO_DHT, OUTPUT);
     digitalWrite(PINO_DHT, LOW);
     delay(18);
     digitalWrite(PINO_DHT, HIGH);
-    delayMicroseconds(40);
+    delayMicroseconds(30);
     pinMode(PINO_DHT, INPUT);
 
-    for (i = 0; i < MAX_TIMINGS; i++) {
-        contador = 0;
+    if (!aguardarNivelDHT(LOW, 250) ||
+        !aguardarNivelDHT(HIGH, 250) ||
+        !aguardarNivelDHT(LOW, 250)) {
+        return -1;
+    }
 
-        while (digitalRead(PINO_DHT) == ultimoEstado) {
-            contador++;
-            delayMicroseconds(1);
-
-            if (contador == 255) {
-                break;
-            }
+    for (bit = 0; bit < 40; bit++) {
+        if (!aguardarNivelDHT(HIGH, 150)) {
+            return -1;
         }
 
-        ultimoEstado = digitalRead(PINO_DHT);
-
-        if (contador == 255) {
-            break;
+        inicioPulso = micros();
+        if (!aguardarNivelDHT(LOW, 150)) {
+            return -1;
         }
 
-        if ((i >= 4) && (i % 2 == 0)) {
-            dadosDHT[j / 8] <<= 1;
-
-            if (contador > 16) {
-                dadosDHT[j / 8] |= 1;
-            }
-
-            j++;
+        duracaoPulso = (unsigned int)(micros() - inicioPulso);
+        dadosDHT[bit / 8] <<= 1;
+        if (duracaoPulso > 40) {
+            dadosDHT[bit / 8] |= 1;
         }
     }
 
-    if (j >= 40 &&
-        dadosDHT[4] ==
+    if (dadosDHT[4] ==
         ((dadosDHT[0] + dadosDHT[1] +
           dadosDHT[2] + dadosDHT[3]) & 0xFF)) {
 
@@ -726,14 +734,15 @@ static void *threadSensores(void *arg)
             if (lerDHT11(&umid, &temp)) {
                 leituraValida = true;
             } else {
+                leituraValida = false;
                 fprintf(stderr,
                     "Falha ao ler o DHT11. Verifique a ligacao.\n");
             }
         }
 
-        bool fumaca = digitalRead(PINO_MQ2) == NIVEL_DETECTADO;
+        bool mq7Ativo = digitalRead(PINO_MQ7) == NIVEL_MQ7_ATIVO;
 
-        atualizarDados(temp, umid, leituraValida, fumaca);
+        atualizarDados(temp, umid, leituraValida, mq7Ativo);
 
         delay(INTERVALO_LOOP_MS);
     }
@@ -753,8 +762,11 @@ static void *threadMonitoramento(void *arg)
 
         EstadoSistema estado;
 
-        if (d.fumaca) {
+        if (d.mq7Ativo) {
             estado = ESTADO_PERIGO;
+        }
+        else if (!d.leituraValida) {
+            estado = ESTADO_SEM_DADOS;
         }
         else if (condicaoDeAlerta(d)) {
             estado = ESTADO_ATENCAO;
@@ -786,9 +798,16 @@ static void *threadMonitoramento(void *arg)
 
                 case ESTADO_PERIGO:
                     ledVermelho();
-                    printf("[VERMELHO] PERIGO! Monoxido de carbono (CO) detectado.\n");
+                    printf("[VERMELHO] Saida digital do MQ-7 ativada.\n");
                     bancoSalvarEvento(estado,
-                        "PERIGO! Monoxido de carbono (CO) detectado.");
+                        "Saida digital do MQ-7 ativada; nao e uma medicao calibrada de CO.");
+                    break;
+
+                case ESTADO_SEM_DADOS:
+                    ledAmarelo();
+                    printf("[AMARELO] Sem leitura valida do DHT11.\n");
+                    bancoSalvarEvento(estado,
+                        "Sem leitura valida do DHT11.");
                     break;
             }
         }
@@ -812,17 +831,17 @@ static void *threadRelatorio(void *arg)
         if (d.leituraValida) {
 
             printf(
-                "Temperatura: %.1f C | Umidade: %.1f %% | CO: %s\n",
+                "Temperatura: %.1f C | Umidade: %.1f %% | MQ-7 digital: %s\n",
                 d.temperatura,
                 d.umidade,
-                d.fumaca ? "DETECTADO" : "normal"
+                d.mq7Ativo ? "ATIVO" : "inativo"
             );
 
         } else {
 
             printf(
-                "Temperatura: -- | Umidade: -- | CO: %s\n",
-                d.fumaca ? "DETECTADO" : "normal"
+                "Temperatura: -- | Umidade: -- | MQ-7 digital: %s\n",
+                d.mq7Ativo ? "ATIVO" : "inativo"
             );
         }
 
@@ -889,7 +908,7 @@ int main(void)
         printf("API disponivel em http://0.0.0.0:%d\n", PORTA_API);
     }
 
-    pinMode(PINO_MQ2, INPUT);
+    pinMode(PINO_MQ7, INPUT);
 
     pinMode(PINO_LED_R, OUTPUT);
     pinMode(PINO_LED_G, OUTPUT);
@@ -897,12 +916,12 @@ int main(void)
 
     ledApagado();
 
-    printf("Aquecendo o MQ-7 (aguarde alguns minutos)...\n");
+    printf("Aguardando estabilizacao inicial do MQ-7...\n");
 
     unsigned long inicio = millis();
 
     while (executando &&
-           (millis() - inicio) < TEMPO_AQUECIMENTO_MS) {
+           (millis() - inicio) < TEMPO_ESTABILIZACAO_MS) {
 
         ledAzul();
         delay(500);
