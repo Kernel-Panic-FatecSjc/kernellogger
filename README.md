@@ -90,6 +90,17 @@ sudo docker-compose up -d
 
 As leituras permanecem no volume Docker `monitor_pgdata` quando os containers são parados. Para apagar também o banco e todas as leituras, use `sudo docker-compose down -v`.
 
+## Testar o alarme
+
+Como o botão "testar" de um detector de fumaça, a rota `/teste` força o estado de **perigo** por 10 segundos, inclusive com o sensor real conectado. O LED fica vermelho, o painel mostra "Teste do alarme" e apita, e o evento é gravado no banco como `TESTE do alarme acionado pela API.`. Depois de 10 s o monitor volta a usar só os sensores.
+
+```bash
+curl "http://IP_DO_RASPBERRY:8080/teste"           # aciona por 10 s
+curl "http://IP_DO_RASPBERRY:8080/teste?parar=1"   # encerra antes
+```
+
+O painel também tem o botão **Testar alarme**. Durante o aquecimento do MQ-2 a rota responde `409`. Fumaça real tem prioridade sobre o teste.
+
 ## Rodar sem o Raspberry Pi (modo simulação)
 
 O monitor pode ser compilado com GPIO e sensores simulados. O resto do programa é o mesmo que roda no Pi: as três threads, a gravação no PostgreSQL e a API na porta `8080`. Assim dá para testar o sistema inteiro (monitor → banco → painel) em qualquer Linux ou WSL, sem placa e sem wiringPi.
@@ -125,7 +136,7 @@ Os valores simulados passam pelo mesmo caminho dos reais: viram estado, evento e
 ## Endereços e portas
 
 - Painel: `http://localhost:3000`
-- API do monitor C: `http://localhost:8080` (`/health`, `/status`, `/leituras` e `/eventos`)
+- API do monitor C: `http://localhost:8080` (`/health`, `/status`, `/leituras`, `/eventos` e `/teste`)
 - PostgreSQL: porta `5432`, disponível no próprio Raspberry Pi
 
 O painel e o banco rodam em Docker. O processo C é iniciado no Raspberry Pi para que possa acessar diretamente os GPIOs. Para usar uma API em outro endereço, defina `BACKEND_URL` no ambiente do serviço `dashboard` em `docker-compose.yml`.

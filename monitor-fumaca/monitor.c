@@ -40,6 +40,7 @@
 #define TENTATIVA_BANCO_MS  5000UL   
 #define INTERVALO_BANCO_MS  10000UL  
 #define PORTA_API           8080
+#define DURACAO_TESTE_MS    10000UL
 #define LIMITE_PADRAO       50
 #define LIMITE_MAXIMO       500
 
@@ -51,6 +52,23 @@
 
 static volatile sig_atomic_t executando = 1;
 static volatile sig_atomic_t aquecendo = 1;
+
+/* Teste do alarme (rota /teste): forca o estado de perigo por DURACAO_TESTE_MS,
+   como o botao "testar" de um detector de fumaca. */
+static volatile sig_atomic_t testeLigado = 0;
+static volatile unsigned int testeInicio = 0;
+
+static bool emTeste(void)
+{
+    if (!testeLigado) {
+        return false;
+    }
+    if (millis() - testeInicio >= DURACAO_TESTE_MS) {
+        testeLigado = 0;
+        return false;
+    }
+    return true;
+}
 
 static sem_t semDados;
 
@@ -502,9 +520,10 @@ static char *jsonStatus(void)
     DadosSensores d = obterDados();
     EstadoSistema e = obterEstado();
 
-    bufferPrintf(&b, "{\"aquecendo\":%s,\"estado\":\"%s\","
+    bufferPrintf(&b, "{\"aquecendo\":%s,\"teste\":%s,\"estado\":\"%s\","
                      "\"fumaca\":%s,\"leitura_valida\":%s,",
                  aquecendo ? "true" : "false",
+                 emTeste() ? "true" : "false",
                  nomeEstado(e),
                  d.fumaca ? "true" : "false",
                  d.leituraValida ? "true" : "false");
@@ -586,6 +605,33 @@ static char *simularRequisicao(struct MHD_Connection *conexao)
 }
 #endif
 
+/*
+ * GET /teste          aciona o teste do alarme por 10 s (LED vermelho, evento no banco)
+ * GET /teste?parar=1  encerra o teste antes do tempo
+ */
+static MHD_RESULT responderTeste(struct MHD_Connection *conexao)
+{
+    Buffer b = {NULL, 0, 0};
+
+    if (MHD_lookup_connection_value(conexao, MHD_GET_ARGUMENT_KIND, "parar")) {
+        testeLigado = 0;
+        printf("[TESTE] Teste do alarme encerrado pela API.\n");
+    } else if (aquecendo) {
+        return enviarJson(conexao, MHD_HTTP_CONFLICT,
+            strdup("{\"erro\":\"sensor aquecendo; tente depois do aquecimento\"}"));
+    } else {
+        testeInicio = millis();
+        testeLigado = 1;
+        printf("[TESTE] Teste do alarme acionado pela API (%lu s).\n",
+               DURACAO_TESTE_MS / 1000UL);
+    }
+
+    bufferPrintf(&b, "{\"teste\":%s,\"segundos\":%lu}",
+                 testeLigado ? "true" : "false", DURACAO_TESTE_MS / 1000UL);
+
+    return enviarJson(conexao, MHD_HTTP_OK, b.buf);
+}
+
 static MHD_RESULT tratarRequisicao(void *cls,
                                    struct MHD_Connection *conexao,
                                    const char *url,
@@ -618,6 +664,10 @@ static MHD_RESULT tratarRequisicao(void *cls,
     if (strcmp(url, "/leituras") == 0) {
         return enviarJson(conexao, MHD_HTTP_OK,
                           bancoListarLeituras(lerLimite(conexao)));
+    }
+
+    if (strcmp(url, "/teste") == 0) {
+        return responderTeste(conexao);
     }
 
     if (strcmp(url, "/eventos") == 0) {
@@ -845,14 +895,16 @@ static void *threadMonitoramento(void *arg)
     (void)arg;
 
     EstadoSistema estadoAnterior = -1;
+    bool testeAnterior = false;
 
     while (executando) {
 
         DadosSensores d = obterDados();
 
         EstadoSistema estado;
+        bool teste = emTeste() && !d.fumaca;   /* fumaca real tem prioridade */
 
-        if (d.fumaca) {
+        if (d.fumaca || teste) {
             estado = ESTADO_PERIGO;
         }
         else if (condicaoDeAlerta(d)) {
@@ -862,9 +914,10 @@ static void *threadMonitoramento(void *arg)
             estado = ESTADO_NORMAL;
         }
 
-        if (estado != estadoAnterior) {
+        if (estado != estadoAnterior || teste != testeAnterior) {
 
             estadoAnterior = estado;
+            testeAnterior = teste;
 
             definirEstado(estado);
 
@@ -885,6 +938,12 @@ static void *threadMonitoramento(void *arg)
 
                 case ESTADO_PERIGO:
                     ledVermelho();
+                    if (teste) {
+                        printf("[VERMELHO] TESTE do alarme acionado pela API.\n");
+                        bancoSalvarEvento(estado,
+                            "TESTE do alarme acionado pela API.");
+                        break;
+                    }
                     printf("[VERMELHO] PERIGO! Monoxido de carbono (CO) detectado.\n");
                     bancoSalvarEvento(estado,
                         "PERIGO! Monoxido de carbono (CO) detectado.");
