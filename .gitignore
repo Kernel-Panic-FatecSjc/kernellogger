@@ -1,2 +1,4 @@
 node_modules/
 *.db
+monitor-fumaca/monitor
+monitor-fumaca/monitor-sim

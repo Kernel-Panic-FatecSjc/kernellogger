@@ -7,7 +7,11 @@
 #include <signal.h>
 #include <pthread.h>
 #include <semaphore.h>
+#ifdef SIMULACAO
+#include "gpio_simulado.h"
+#else
 #include <wiringPi.h>
+#endif
 #include <libpq-fe.h>
 #include <microhttpd.h>
 
@@ -20,7 +24,9 @@
 #define LED_ANODO_COMUM 0
 #define NIVEL_DETECTADO LOW
 
+#ifndef TEMPO_AQUECIMENTO_MS
 #define TEMPO_AQUECIMENTO_MS 180000UL
+#endif
 #define INTERVALO_DHT_MS     2000UL
 #define INTERVALO_LOOP_MS    200UL
 #define TENTATIVAS_DHT       5
@@ -535,6 +541,51 @@ static int lerLimite(struct MHD_Connection *conexao)
     return v;
 }
 
+#ifdef SIMULACAO
+static volatile int simCalor;
+static volatile int simUmidade;
+
+/*
+ * GET /simular?fumaca=1|0&calor=1|0&umidade=normal|seca|umida
+ * Sem parametros, apenas devolve o estado atual da simulacao.
+ */
+static char *simularRequisicao(struct MHD_Connection *conexao)
+{
+    const char *v;
+    Buffer b = {NULL, 0, 0};
+
+    v = MHD_lookup_connection_value(conexao, MHD_GET_ARGUMENT_KIND, "fumaca");
+    if (v) {
+        simEntradas[PINO_MQ2] = (strcmp(v, "1") == 0)
+            ? NIVEL_DETECTADO : !NIVEL_DETECTADO;
+        printf("[SIMULACAO] fumaca %s\n", strcmp(v, "1") == 0 ? "ligada" : "desligada");
+    }
+
+    v = MHD_lookup_connection_value(conexao, MHD_GET_ARGUMENT_KIND, "calor");
+    if (v) {
+        simCalor = strcmp(v, "1") == 0;
+        printf("[SIMULACAO] calor %s\n", simCalor ? "ligado" : "desligado");
+    }
+
+    v = MHD_lookup_connection_value(conexao, MHD_GET_ARGUMENT_KIND, "umidade");
+    if (v) {
+        simUmidade = strcmp(v, "seca") == 0 ? 1 : strcmp(v, "umida") == 0 ? 2 : 0;
+        printf("[SIMULACAO] umidade %s\n", v);
+    }
+
+    bufferPrintf(&b,
+        "{\"fumaca\":%s,\"calor\":%s,\"umidade\":\"%s\","
+        "\"aquecendo\":%s,\"led\":{\"r\":%d,\"g\":%d,\"b\":%d}}",
+        simEntradas[PINO_MQ2] == NIVEL_DETECTADO ? "true" : "false",
+        simCalor ? "true" : "false",
+        simUmidade == 1 ? "seca" : simUmidade == 2 ? "umida" : "normal",
+        aquecendo ? "true" : "false",
+        simSaidas[PINO_LED_R], simSaidas[PINO_LED_G], simSaidas[PINO_LED_B]);
+
+    return b.buf;
+}
+#endif
+
 static MHD_RESULT tratarRequisicao(void *cls,
                                    struct MHD_Connection *conexao,
                                    const char *url,
@@ -573,6 +624,12 @@ static MHD_RESULT tratarRequisicao(void *cls,
         return enviarJson(conexao, MHD_HTTP_OK,
                           bancoListarEventos(lerLimite(conexao)));
     }
+
+#ifdef SIMULACAO
+    if (strcmp(url, "/simular") == 0) {
+        return enviarJson(conexao, MHD_HTTP_OK, simularRequisicao(conexao));
+    }
+#endif
 
     return enviarJson(conexao, MHD_HTTP_NOT_FOUND,
                       strdup("{\"erro\":\"rota nao encontrada\"}"));
@@ -613,6 +670,46 @@ static void ledApagado(void)
     escreverLed(false, false, false);
 }
 
+
+#ifdef SIMULACAO
+
+/* Estado controlado pela rota /simular. */
+static volatile int simCalor = 0;      /* 1 = temperatura sobe acima do limite */
+static volatile int simUmidade = 0;    /* 0 = normal, 1 = seca, 2 = umida     */
+
+static float simAproximar(float atual, float alvo, float passo, float ruido)
+{
+    float r = ((float)rand() / (float)RAND_MAX - 0.5f) * ruido;
+    return atual + (alvo - atual) * passo + r;
+}
+
+/* Gera leituras plausiveis no lugar do protocolo de 40 bits do DHT11. */
+static int lerDHT11Uma(float *umid, float *temp)
+{
+    static float t = 26.5f;
+    static float u = 55.0f;
+
+    if (rand() % 50 == 0) {
+        return -1;   /* falha ocasional para exercitar as novas tentativas */
+    }
+
+    float alvoT = simCalor ? 38.0f : 26.5f;
+    float alvoU = simUmidade == 1 ? 14.0f : simUmidade == 2 ? 92.0f : 55.0f;
+
+    t = simAproximar(t, alvoT, simCalor ? 0.25f : 0.05f, 0.6f);
+    u = simAproximar(u, alvoU, simUmidade ? 0.25f : 0.05f, 2.0f);
+
+    if (u < 5.0f) u = 5.0f;
+    if (u > 99.0f) u = 99.0f;
+
+    /* o DHT11 entrega uma casa decimal */
+    *temp = (float)((int)(t * 10.0f + 0.5f)) / 10.0f;
+    *umid = (float)((int)(u * 10.0f + 0.5f)) / 10.0f;
+
+    return 0;
+}
+
+#else
 
 static int lerDHT11Uma(float *umid, float *temp)
 {
@@ -671,6 +768,8 @@ static int lerDHT11Uma(float *umid, float *temp)
 
     return -1;
 }
+
+#endif /* SIMULACAO */
 
 static bool lerDHT11(float *umid, float *temp)
 {
@@ -859,6 +958,10 @@ int main(void)
 
     signal(SIGINT, tratarSinal);
     signal(SIGTERM, tratarSinal);
+
+#ifdef SIMULACAO
+    srand((unsigned int)time(NULL));
+#endif
 
     if (wiringPiSetupGpio() == -1) {
         fprintf(stderr, "Falha ao iniciar o wiringPi.\n");

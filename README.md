@@ -90,6 +90,38 @@ sudo docker-compose up -d
 
 As leituras permanecem no volume Docker `monitor_pgdata` quando os containers são parados. Para apagar também o banco e todas as leituras, use `sudo docker-compose down -v`.
 
+## Rodar sem o Raspberry Pi (modo simulação)
+
+O monitor pode ser compilado com GPIO e sensores simulados. O resto do programa é o mesmo que roda no Pi: as três threads, a gravação no PostgreSQL e a API na porta `8080`. Assim dá para testar o sistema inteiro (monitor → banco → painel) em qualquer Linux ou WSL, sem placa e sem wiringPi.
+
+Instale só as bibliotecas do banco e da API:
+
+```bash
+sudo apt install -y build-essential libpq-dev libmicrohttpd-dev
+```
+
+Compile e rode:
+
+```bash
+cd ~/kernellogger/monitor-fumaca
+make simulacao
+./monitor-sim
+```
+
+O banco precisa estar ativo (seção 3). No modo simulação o aquecimento do MQ-2 dura 15 segundos em vez de 3 minutos; para mudar, use `make simulacao AQUECIMENTO_SIM=5000` (em milissegundos).
+
+A temperatura e a umidade variam sozinhas dentro da faixa normal. Para provocar cada situação, use a rota `/simular`, disponível só nesse modo:
+
+```bash
+curl "localhost:8080/simular?fumaca=1"     # MQ-2 detecta fumaça → perigo (LED vermelho)
+curl "localhost:8080/simular?fumaca=0"
+curl "localhost:8080/simular?calor=1"      # temperatura sobe acima de 35 °C → atenção
+curl "localhost:8080/simular?umidade=seca" # abaixo de 20 % → atenção (também: umida, normal)
+curl "localhost:8080/simular"              # mostra o estado da simulação e do LED
+```
+
+Os valores simulados passam pelo mesmo caminho dos reais: viram estado, evento e leitura no banco, e aparecem no painel. A compilação normal (`make`) não muda.
+
 ## Endereços e portas
 
 - Painel: `http://localhost:3000`
