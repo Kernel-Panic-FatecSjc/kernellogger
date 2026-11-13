@@ -1,581 +1,257 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <title>Atmos - Monitoramento Ambiental</title>
-
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            background: #f5f7fb;
-            color: #172235;
-            font-family: Arial, sans-serif;
-        }
-
-        .app {
-            display: flex;
-            min-height: 100vh;
-        }
-
-        aside {
-            width: 230px;
-            background: white;
-            padding: 25px;
-            border-right: 1px solid #e8edf4;
-        }
-
-        .logo {
-            color: #159b72;
-            font-size: 25px;
-            font-weight: bold;
-            margin-bottom: 35px;
-        }
-
-        .menu a {
-            display: block;
-            padding: 12px;
-            margin-bottom: 8px;
-            color: #647187;
-            text-decoration: none;
-            border-radius: 8px;
-        }
-
-        .menu a:hover {
-            background: #e7f7f1;
-            color: #159b72;
-        }
-
-        main {
-            flex: 1;
-            padding: 30px;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 27px;
-        }
-
-        header p {
-            color: #8490a3;
-        }
-
-        .status {
-            background: white;
-            padding: 10px 15px;
-            border-radius: 20px;
-            color: #159b72;
-        }
-
-        .alerta {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            border: 1px solid #e8edf4;
-        }
-
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-        }
-
-        .card {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #e8edf4;
-        }
-
-        .card h3 {
-            color: #647187;
-            font-size: 14px;
-        }
-
-        .valor {
-            font-size: 30px;
-            font-weight: bold;
-            margin: 20px 0;
-        }
-
-        .temperatura {
-            color: #e78348;
-        }
-
-        .umidade {
-            color: #4c77ed;
-        }
-
-        .fumaca {
-            color: #159b72;
-        }
-
-        .secao {
-            margin-top: 30px;
-        }
-
-        .graficos {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        canvas {
-            width: 100%;
-            height: 180px;
-        }
-
-        .historico {
-            background: white;
-            border-radius: 12px;
-            margin-top: 30px;
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th, td {
-            padding: 13px;
-            text-align: left;
-            border-bottom: 1px solid #e8edf4;
-        }
-
-        th {
-            color: #8490a3;
-            font-size: 12px;
-        }
-
-        td {
-            font-size: 13px;
-        }
-
-        .normal {
-            color: #159b72;
-        }
-
-        .atencao {
-            color: #d98b19;
-        }
-
-        .perigo {
-            color: #d94d57;
-        }
-
-        @media (max-width: 800px) {
-            aside {
-                display: none;
-            }
-
-            main {
-                padding: 15px;
-            }
-
-            .cards {
-                grid-template-columns: 1fr;
-            }
-
-            .graficos {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kernel Panic · Monitor Ambiental</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+<script type="importmap">{ "imports": { "three": "./three.module.min.js" } }</script>
 </head>
+<body data-estado="aguardando">
 
-<body>
+<div class="aurora" aria-hidden="true"></div>
+<div class="grade" aria-hidden="true"></div>
 
-<div class="app">
+<header class="topo">
+    <a class="marca" href="#inicio">
+        <span class="marca-led"></span>
+        <span class="marca-nome">Kernel&nbsp;Panic</span>
+        <span class="marca-sub">Monitor Ambiental</span>
+    </a>
+    <nav class="nav">
+        <a href="#inicio">Visão geral</a>
+        <a href="#circuito">Circuito</a>
+        <a href="#historico">Histórico</a>
+        <a href="#eventos">Eventos</a>
+    </nav>
+    <div class="topo-dir">
+        <span class="relogio mono" id="relogio">--:--:--</span>
+        <span class="pilula" id="conexao"><i></i><b>Conectando…</b></span>
+    </div>
+</header>
 
-    <aside>
-        <div class="logo">Atmos</div>
-
-        <div class="menu">
-            <a href="#inicio">Visão geral</a>
-            <a href="#graficos">Histórico</a>
-        </div>
-
-        <p>Estação local</p>
-        <small>Raspberry Pi</small>
-        <br>
-        <small>DHT11 - MQ-2</small>
-    </aside>
-
-    <main id="inicio">
-
-        <header>
-            <div>
-                <h1>Visão geral</h1>
-                <p>Monitoramento do ambiente em tempo real.</p>
-            </div>
-
-            <div class="status" id="conexao">
-                ● Conectando...
-            </div>
-        </header>
-
-        <div class="alerta" id="alerta">
-            Aguardando dados dos sensores...
-        </div>
-
-        <h2>Leitura atual</h2>
-
-        <section class="cards">
-
-            <div class="card">
-                <h3>Temperatura</h3>
-                <div class="valor temperatura">
-                    <span id="temperatura">--</span> °C
-                </div>
-                <p>Limite: 35 °C</p>
-            </div>
-
-            <div class="card">
-                <h3>Umidade do ar</h3>
-                <div class="valor umidade">
-                    <span id="umidade">--</span> %
-                </div>
-                <p>Umidade relativa</p>
-            </div>
-
-            <div class="card">
-                <h3>Fumaça - MQ-2</h3>
-                <div class="valor fumaca" id="fumaca">
-                    --
-                </div>
-                <p id="mensagemFumaca">Aguardando leitura</p>
-            </div>
-
-        </section>
-
-        <section class="secao" id="graficos">
-
-            <h2>Variação das leituras</h2>
-
-            <div class="graficos">
-
-                <div class="card">
-                    <h3>Temperatura</h3>
-                    <canvas id="graficoTemperatura"></canvas>
-                </div>
-
-                <div class="card">
-                    <h3>Umidade</h3>
-                    <canvas id="graficoUmidade"></canvas>
-                </div>
-
-            </div>
-
-        </section>
-
-        <section class="secao">
-
-            <h2>Últimas leituras</h2>
-
-            <div class="historico">
-
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Horário</th>
-                            <th>Temperatura</th>
-                            <th>Umidade</th>
-                            <th>Fumaça</th>
-                            <th>Estado</th>
-                        </tr>
-                    </thead>
-
-                    <tbody id="tabela">
-                        <tr>
-                            <td colspan="5">
-                                Aguardando leituras...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-            </div>
-
-        </section>
-
-    </main>
-
+<div class="faixa-demo" id="faixaDemo" hidden>
+    <span>API do monitor indisponível — exibindo <strong>dados simulados</strong> para demonstração.</span>
+    <button type="button" id="btnFumacaDemo">Simular fumaça</button>
 </div>
 
-<script>
-
-    const LIMITE_TEMPERATURA = 35;
-
-    let leituras = [];
-
-    function buscarElemento(id) {
-        return document.getElementById(id);
-    }
-
-    function verificarEstado(leitura) {
-
-        if (leitura.fumaca) {
-            return "perigo";
-        }
-
-        if (leitura.temperatura >= LIMITE_TEMPERATURA) {
-            return "atencao";
-        }
-
-        if (leitura.umidade < 20 || leitura.umidade > 85) {
-            return "atencao";
-        }
-
-        return "normal";
-    }
-
-    function mostrarAlerta(leitura) {
-
-        const estado = verificarEstado(leitura);
-        const alerta = buscarElemento("alerta");
-
-        if (estado === "perigo") {
-            alerta.textContent = "Alerta! Fumaça detectada no ambiente.";
-            alerta.style.color = "#d94d57";
-        }
-        else if (estado === "atencao") {
-            alerta.textContent = "Atenção! Valores fora dos limites definidos.";
-            alerta.style.color = "#d98b19";
-        }
-        else {
-            alerta.textContent = "Ambiente dentro dos parâmetros normais.";
-            alerta.style.color = "#159b72";
-        }
-    }
-
-    function atualizarTela(leitura) {
-
-        buscarElemento("temperatura").textContent =
-            leitura.temperatura == null
-                ? "--"
-                : Number(leitura.temperatura).toFixed(1);
-
-        buscarElemento("umidade").textContent =
-            leitura.umidade == null
-                ? "--"
-                : Number(leitura.umidade).toFixed(1);
-
-        buscarElemento("fumaca").textContent =
-            leitura.fumaca ? "Detectada" : "Normal";
-
-        buscarElemento("mensagemFumaca").textContent =
-            leitura.fumaca
-                ? "Gás ou fumaça detectada"
-                : "Nenhuma fumaça detectada";
-
-        mostrarAlerta(leitura);
-    }
-
-    function desenharGrafico(id, dados, campo, cor, limite) {
-
-        const canvas = buscarElemento(id);
-        const ctx = canvas.getContext("2d");
-
-        const largura = canvas.clientWidth;
-        const altura = canvas.clientHeight;
-
-        canvas.width = largura;
-        canvas.height = altura;
-
-        ctx.clearRect(0, 0, largura, altura);
-
-        ctx.strokeStyle = "#e8edf4";
-        ctx.fillStyle = "#8490a3";
-        ctx.font = "11px Arial";
-
-        for (let i = 0; i <= 4; i++) {
-
-            const y = 10 + i * (altura - 30) / 4;
-
-            ctx.beginPath();
-            ctx.moveTo(30, y);
-            ctx.lineTo(largura - 10, y);
-            ctx.stroke();
-        }
-
-        if (dados.length < 2) {
-            return;
-        }
-
-        const pontos = dados.map((item, index) => {
-
-            const x = 30 + index * (largura - 40) /
-                (dados.length - 1);
-
-            const valor = Number(item[campo]) || 0;
-
-            const y = altura - 20 - (valor / limite) *
-                (altura - 40);
-
-            return {
-                x: x,
-                y: Math.max(10, Math.min(altura - 20, y))
-            };
-
-        });
-
-        ctx.beginPath();
-
-        pontos.forEach((ponto, index) => {
-
-            if (index === 0) {
-                ctx.moveTo(ponto.x, ponto.y);
-            }
-            else {
-                ctx.lineTo(ponto.x, ponto.y);
-            }
-
-        });
-
-        ctx.strokeStyle = cor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-    }
-
-    function atualizarGraficos() {
-
-        desenharGrafico(
-            "graficoTemperatura",
-            leituras,
-            "temperatura",
-            "#e78348",
-            50
-        );
-
-        desenharGrafico(
-            "graficoUmidade",
-            leituras,
-            "umidade",
-            "#4c77ed",
-            100
-        );
-
-    }
-
-    function atualizarTabela() {
-
-        const tabela = buscarElemento("tabela");
-
-        const ultimasLeituras = leituras.slice(-30).reverse();
-
-        if (ultimasLeituras.length === 0) {
-
-            tabela.innerHTML =
-                "<tr><td colspan='5'>Nenhuma leitura recebida</td></tr>";
-
-            return;
-        }
-
-        tabela.innerHTML = "";
-
-        ultimasLeituras.forEach(leitura => {
-
-            const estado = verificarEstado(leitura);
-
-            const horario = new Date(leitura.criado_em)
-                .toLocaleTimeString("pt-BR");
-
-            const temperatura = leitura.temperatura == null
-                ? "--"
-                : Number(leitura.temperatura).toFixed(1) + " °C";
-
-            const umidade = leitura.umidade == null
-                ? "--"
-                : Number(leitura.umidade).toFixed(1) + " %";
-
-            const fumaca = leitura.fumaca
-                ? "Detectada"
-                : "Não";
-
-            const linha = document.createElement("tr");
-
-            linha.innerHTML = `
-                <td>${horario}</td>
-                <td>${temperatura}</td>
-                <td>${umidade}</td>
-                <td>${fumaca}</td>
-                <td class="${estado}">${estado}</td>
-            `;
-
-            tabela.appendChild(linha);
-
-        });
-
-    }
-
-    async function buscarLeituras() {
-
-        try {
-
-            const resposta = await fetch("/api/leituras");
-
-            if (!resposta.ok) {
-                throw new Error("Erro ao buscar leituras");
-            }
-
-            leituras = await resposta.json();
-
-            buscarElemento("conexao").textContent =
-                "● Conectado";
-
-            buscarElemento("conexao").style.color =
-                "#159b72";
-
-            if (leituras.length > 0) {
-
-                const leituraAtual = leituras[leituras.length - 1];
-
-                atualizarTela(leituraAtual);
-
-                atualizarTabela();
-
-                atualizarGraficos();
-
-            }
-
-        }
-        catch (erro) {
-
-            buscarElemento("conexao").textContent =
-                "● Sem conexão";
-
-            buscarElemento("conexao").style.color =
-                "#d94d57";
-
-            buscarElemento("alerta").textContent =
-                "Não foi possível conectar com a API.";
-
-        }
-
-    }
-
-    buscarLeituras();
-
-    setInterval(buscarLeituras, 2000);
-
-    window.addEventListener("resize", atualizarGraficos);
-
-</script>
-
+<main>
+
+<!-- ========== HERO ========== -->
+<section class="hero" id="inicio">
+
+    <div class="coluna-esq">
+
+        <article class="painel estado-painel">
+            <div class="orb-wrap">
+                <div class="orb" id="orb"><span></span></div>
+                <div class="orb-anel"></div>
+                <div class="orb-anel atraso"></div>
+            </div>
+            <div class="estado-texto">
+                <span class="rotulo">Estado do ambiente</span>
+                <h1 id="estadoTitulo">Aguardando leituras</h1>
+                <p id="estadoDescricao">Conectando ao Raspberry Pi e ao banco de leituras…</p>
+                <div class="chips">
+                    <span class="chip">Temp. máx <b class="mono">35 °C</b></span>
+                    <span class="chip">Umidade <b class="mono">20 – 85 %</b></span>
+                    <span class="chip" id="chipAtualizado">Atualizado <b class="mono">—</b></span>
+                </div>
+            </div>
+        </article>
+
+        <div class="metricas">
+
+            <article class="painel metrica" data-tipo="temp">
+                <header>
+                    <span class="rotulo">Temperatura</span>
+                    <span class="sensor-tag mono">DHT11 · GPIO 4</span>
+                </header>
+                <div class="gauge-wrap">
+                    <svg class="gauge" viewBox="0 0 120 120">
+                        <circle class="gauge-trilho" cx="60" cy="60" r="50"/>
+                        <circle class="gauge-limite" cx="60" cy="60" r="50" id="limTemp"/>
+                        <circle class="gauge-valor" cx="60" cy="60" r="50" id="gaugeTemp"/>
+                    </svg>
+                    <div class="gauge-centro">
+                        <span class="valor mono" id="temperatura">--</span>
+                        <span class="unidade">°C</span>
+                    </div>
+                </div>
+                <svg class="spark" id="sparkTemp" preserveAspectRatio="none" viewBox="0 0 100 28"></svg>
+                <footer><span id="tempDelta" class="delta mono">—</span><span>limite 35 °C</span></footer>
+            </article>
+
+            <article class="painel metrica" data-tipo="umid">
+                <header>
+                    <span class="rotulo">Umidade do ar</span>
+                    <span class="sensor-tag mono">DHT11 · GPIO 4</span>
+                </header>
+                <div class="gauge-wrap">
+                    <svg class="gauge" viewBox="0 0 120 120">
+                        <circle class="gauge-trilho" cx="60" cy="60" r="50"/>
+                        <circle class="gauge-limite" cx="60" cy="60" r="50" id="limUmid"/>
+                        <circle class="gauge-valor" cx="60" cy="60" r="50" id="gaugeUmid"/>
+                    </svg>
+                    <div class="gauge-centro">
+                        <span class="valor mono" id="umidade">--</span>
+                        <span class="unidade">%</span>
+                    </div>
+                </div>
+                <svg class="spark" id="sparkUmid" preserveAspectRatio="none" viewBox="0 0 100 28"></svg>
+                <footer><span id="umidDelta" class="delta mono">—</span><span>faixa 20 – 85 %</span></footer>
+            </article>
+
+            <article class="painel metrica" data-tipo="fumaca" id="cardFumaca">
+                <header>
+                    <span class="rotulo">Fumaça / gás</span>
+                    <span class="sensor-tag mono">MQ-2 · GPIO 17</span>
+                </header>
+                <div class="fumaca-vis">
+                    <div class="radar"><i></i><i></i><i></i><span></span></div>
+                    <div>
+                        <span class="valor-txt" id="fumaca">--</span>
+                        <span class="sub" id="mensagemFumaca">Aguardando leitura</span>
+                    </div>
+                </div>
+                <div class="barras-fumaca" id="barrasFumaca" title="Últimas leituras do MQ-2"></div>
+                <footer><span id="fumacaContagem" class="mono">—</span><span>saída digital (LOW = detectado)</span></footer>
+            </article>
+
+        </div>
+    </div>
+
+    <!-- ========== CIRCUITO 3D ========== -->
+    <article class="painel viewer" id="circuito">
+        <div class="viewer-topo">
+            <div>
+                <span class="rotulo">Maquete interativa</span>
+                <h2>O circuito</h2>
+            </div>
+            <div class="segmentado" id="previewEstado" role="group" aria-label="Pré-visualizar cor do LED">
+                <button type="button" data-estado="ao-vivo" class="ativo">Ao vivo</button>
+                <button type="button" data-estado="aquecendo">Aquecendo</button>
+                <button type="button" data-estado="normal">Normal</button>
+                <button type="button" data-estado="atencao">Atenção</button>
+                <button type="button" data-estado="perigo">Perigo</button>
+            </div>
+        </div>
+
+        <div class="palco" id="palco">
+            <canvas id="canvas3d"></canvas>
+            <div class="rotulos3d" id="rotulos3d"></div>
+            <div class="tooltip3d" id="tooltip3d" hidden></div>
+            <div class="carregando" id="carregando3d"><span></span>Montando o circuito…</div>
+            <div class="ferramentas">
+                <button type="button" class="ico" id="btnRotulos" title="Mostrar rótulos" aria-pressed="true">
+                    <svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/></svg>
+                </button>
+                <button type="button" class="ico" id="btnGirar" title="Rotação automática" aria-pressed="true">
+                    <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+                </button>
+                <button type="button" class="ico" id="btnFluxo" title="Mostrar fluxo de sinais" aria-pressed="true">
+                    <svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+                </button>
+                <button type="button" class="ico" id="btnResetar" title="Reposicionar câmera">
+                    <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"/></svg>
+                </button>
+            </div>
+            <div class="dica">Arraste para girar · role para aproximar · clique em uma peça</div>
+        </div>
+
+        <div class="componentes" id="listaComponentes"></div>
+    </article>
+</section>
+
+<!-- ========== GRÁFICOS ========== -->
+<section class="secao" id="historico">
+    <div class="secao-topo">
+        <div>
+            <span class="rotulo">Histórico</span>
+            <h2>Variação das leituras</h2>
+        </div>
+        <div class="segmentado" id="janela" role="group" aria-label="Janela de tempo">
+            <button type="button" data-n="30">30</button>
+            <button type="button" data-n="60">60</button>
+            <button type="button" data-n="120" class="ativo">120</button>
+            <span class="segmentado-sufixo">leituras</span>
+        </div>
+    </div>
+    <div class="graficos">
+        <article class="painel grafico" data-cor="temp">
+            <header><span class="legenda"><i></i>Temperatura (°C)</span><span class="mono resumo" id="resumoTemp">—</span></header>
+            <div class="grafico-area"><canvas id="graficoTemperatura"></canvas><div class="cursor" hidden></div></div>
+        </article>
+        <article class="painel grafico" data-cor="umid">
+            <header><span class="legenda"><i></i>Umidade (%)</span><span class="mono resumo" id="resumoUmid">—</span></header>
+            <div class="grafico-area"><canvas id="graficoUmidade"></canvas><div class="cursor" hidden></div></div>
+        </article>
+    </div>
+</section>
+
+<!-- ========== EVENTOS + PINAGEM ========== -->
+<section class="secao duas" id="eventos">
+    <article class="painel">
+        <div class="secao-topo compacto">
+            <div>
+                <span class="rotulo">Linha do tempo</span>
+                <h2>Mudanças de estado</h2>
+            </div>
+        </div>
+        <ol class="timeline" id="timeline"><li class="vazio">Nenhum evento ainda.</li></ol>
+    </article>
+
+    <article class="painel">
+        <div class="secao-topo compacto">
+            <div>
+                <span class="rotulo">Ligações</span>
+                <h2>Mapa de pinos</h2>
+            </div>
+            <span class="sensor-tag mono">BCM · header 40 pinos</span>
+        </div>
+        <table class="pinos">
+            <thead><tr><th>Componente</th><th>Sinal</th><th>Pino físico</th><th>GPIO</th><th>Direção</th></tr></thead>
+            <tbody>
+                <tr data-peca="dht11"><td><i class="ponto" style="--c:#38bdf8"></i>DHT11</td><td>Dados</td><td class="mono">7</td><td class="mono">4</td><td>Entrada / saída</td></tr>
+                <tr data-peca="mq2"><td><i class="ponto" style="--c:#f59e0b"></i>MQ-2</td><td>DO (digital)</td><td class="mono">11</td><td class="mono">17</td><td>Entrada</td></tr>
+                <tr data-peca="led"><td><i class="ponto" style="--c:#ef4444"></i>LED RGB</td><td>R</td><td class="mono">13</td><td class="mono">27</td><td>Saída</td></tr>
+                <tr data-peca="led"><td><i class="ponto" style="--c:#22c55e"></i>LED RGB</td><td>G</td><td class="mono">15</td><td class="mono">22</td><td>Saída</td></tr>
+                <tr data-peca="led"><td><i class="ponto" style="--c:#3b82f6"></i>LED RGB</td><td>B</td><td class="mono">16</td><td class="mono">23</td><td>Saída</td></tr>
+                <tr data-peca="alimentacao"><td><i class="ponto" style="--c:#e11d48"></i>Alimentação</td><td>3V3 · 5V · GND</td><td class="mono">1 · 2 · 6 · 9</td><td class="mono">—</td><td>—</td></tr>
+            </tbody>
+        </table>
+        <p class="nota">O MQ-2 sinaliza fumaça em nível <b>LOW</b>. O LED é de cátodo comum: cada cor acende em nível <b>HIGH</b>, com resistor de 220 Ω em série.</p>
+    </article>
+</section>
+
+<!-- ========== TABELA ========== -->
+<section class="secao">
+    <div class="secao-topo">
+        <div>
+            <span class="rotulo">Registro</span>
+            <h2>Últimas leituras</h2>
+        </div>
+        <span class="sensor-tag mono" id="totalLeituras">—</span>
+    </div>
+    <div class="painel tabela-wrap">
+        <table class="leituras">
+            <thead><tr><th>Horário</th><th>Temperatura</th><th>Umidade</th><th>Fumaça</th><th>Estado</th></tr></thead>
+            <tbody id="tabela"><tr><td colspan="5" class="vazio">Aguardando leituras…</td></tr></tbody>
+        </table>
+    </div>
+</section>
+
+</main>
+
+<footer class="rodape">
+    <span><span class="marca-led mini"></span> Kernel Panic · Raspberry Pi · C + wiringPi · PostgreSQL</span>
+    <span class="mono">API :8080 · Painel :3000</span>
+</footer>
+
+<script type="module" src="app.js"></script>
 </body>
 </html>
